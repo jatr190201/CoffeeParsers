@@ -9,6 +9,7 @@ import constraints.BooleanVariable;
 import constraints.PropositionalFormula;
 import fm.FeatureGroup;
 import fm.FeatureModel;
+import fm.FeatureModelException;
 import fm.FeatureTreeNode;
 import fm.RootNode;
 import fm.SolitaireFeature;
@@ -22,20 +23,19 @@ import basicHLVLPackage.IHlvlParser;
 import basicHLVLPackage.HlvlBasicKeys;
 
 /**
- * This class parses splot models to HLVL.
- * implements IHlvlParser, HlvlBasicKeys
+ * This class parses splot models to HLVL. implements IHlvlParser, HlvlBasicKeys
  * We used the template provided by the splot site.
+ * 
  * @author Angela Villota
- * @version coffee V1
- * Jan 2019
+ * @version coffee V1 Jan 2019
  */
 
-public class Splot2HlvlParser implements IHlvlParser{
+public class Splot2HlvlParser implements IHlvlParser {
 	/**
 	 * params is an object with the parsing parameters
 	 */
 	public ParsingParameters params;
-	
+
 	/**
 	 * StringBuilder containing the hlvl program
 	 */
@@ -48,134 +48,145 @@ public class Splot2HlvlParser implements IHlvlParser{
 	 * string builder for the relations declarations
 	 */
 	public StringBuilder relations;
-	
+
 	/**
 	 * factory implementing the transformation patterns
 	 */
 	public HlvlBasicFactory factory;
-	
-
 
 	/**
 	 * constructor
+	 * 
 	 * @param params
 	 */
 	public Splot2HlvlParser(ParsingParameters params) {
 		this.params = params;
-		hlvlProgram= new StringBuilder();
-		elements= new StringBuilder();
-		relations= new StringBuilder();
-		factory= new HlvlBasicFactory();
+		hlvlProgram = new StringBuilder();
+		elements = new StringBuilder();
+		relations = new StringBuilder();
+		factory = new HlvlBasicFactory();
 	}
 
-	public void parse() throws Exception{
-		
+	/**
+	 * Loads the splot xml located in the path that is in params into a tree
+	 * 
+	 * @return Returns a tree that represents the feature model
+	 * @throws FeatureModelException
+	 */
+	public FeatureModel loadXmlModel() throws FeatureModelException {
+		/*
+		 * Creates the Feature Model Object ******************************** - Constant
+		 * USE_VARIABLE_NAME_AS_ID indicates that if an ID has not been defined for a
+		 * feature node in the XML file the feature name should be used as the ID. -
+		 * Constant SET_ID_AUTOMATICALLY can be used to let the system create an unique
+		 * ID for feature nodes without an ID specification Note: if an ID is specified
+		 * for a feature node in the XML file it will always prevail
+		 */
+		FeatureModel featureModel = new XMLFeatureModel(params.getInputPath(), XMLFeatureModel.USE_VARIABLE_NAME_AS_ID);
 
-			/* Creates the Feature Model Object
-			 * ********************************
-			 * - Constant USE_VARIABLE_NAME_AS_ID indicates that if an ID has not been defined for a feature node
-			 *   in the XML file the feature name should be used as the ID. 
-			 * - Constant SET_ID_AUTOMATICALLY can be used to let the system create an unique ID for feature nodes 
-			 *   without an ID specification
-			 *   Note: if an ID is specified for a feature node in the XML file it will always prevail
-			 */			
-			FeatureModel featureModel = new XMLFeatureModel(params.getInputPath(), XMLFeatureModel.USE_VARIABLE_NAME_AS_ID);
-		
-			// Load the XML file and creates the feature model
-			featureModel.loadModel();
-			
-			//traversing the feature tree for obtaining the feature and the hierarchical dependencies
-			traverseDFS(featureModel.getRoot(), 0);
-			
-			
-			traverseConstraints(featureModel);	
-			
-			// formating the output file
-			// including the Header
-			hlvlProgram.append(factory.getHeader(params.getTargetName()+"_generated"));
-			// including the elements
-			hlvlProgram.append(elements.toString());
-			//including the relations
-			hlvlProgram.append(factory.getRelationsLab());
-			hlvlProgram.append(relations.toString());
-			//including the basic operations
-			hlvlProgram.append(factory.getBasicOperationsBlock());
-			
-			//Writing the Hlvl program in a file
-			writeFile();
-		
+		// Load the XML file and creates the feature model
+		featureModel.loadModel();
+
+		return featureModel;
 	}
-		
-	private void traverseDFS(FeatureTreeNode node, int tab) {
 
-		// Root Feature
-		if ( node instanceof RootNode ) {
-			//obtaining a valid name for HLVL
-			String identifier= getValidName(node.getName());
-			// including the root to the elements
-			elements.append("\t"+ factory.getElement(identifier));
+	public void loadModelInformation(FeatureModel featureModel) {
+		// traversing the feature tree for obtaining the feature and the hierarchical
+		// dependencies
+		traverseDFS(featureModel.getRoot(), 0);
+
+		traverseConstraints(featureModel);
+	}
+
+	public void writeHlvlProgram() {
+		// formating the output file
+		// including the Header
+		hlvlProgram.append(factory.getHeader(params.getTargetName() + "_generated"));
+		// including the elements
+		hlvlProgram.append(elements.toString());
+		// including the relations
+		hlvlProgram.append(factory.getRelationsLab());
+		hlvlProgram.append(relations.toString());
+		// including the basic operations
+		hlvlProgram.append(factory.getBasicOperationsBlock());
+	}
+
+	public void parse() throws Exception {
+		FeatureModel featureModel = loadXmlModel();
+		loadModelInformation(featureModel);
+		writeHlvlProgram();
+		// Writing the Hlvl program in a file
+		writeFile();
+
+	}
+
+	public void addFeatureGroup(FeatureGroup node, int tab) {
+		// getting the parent of the group
+		String parentName = getValidName(((FeatureTreeNode) node.getParent()).getName());
+		// TODO comment the min
+
+		int maxCardinality = node.getMax();
+
+		// obtaining a list of the children's identifiers
+		ArrayList<String> children = new ArrayList<String>();
+		Enumeration<FeatureTreeNode> childrenNodes = node.children();
+		while (childrenNodes.hasMoreElements()) {
+			FeatureTreeNode childNode = childrenNodes.nextElement();
+			String childFeatureName = getValidName(childNode.getName());
+			children.add(childFeatureName);
+			// including the child feature to the elements
+			elements.append("\t" + factory.getElement(childFeatureName));
+		}
+
+		// Including the Group relations
+		// OR relation
+		if (maxCardinality == -1) {
+			relations.append("\t" + factory.getGroup(parentName, children, GroupType.Or));
+		}
+		// Alternative relation
+		else {
+			relations.append("\t" + factory.getGroup(parentName, children, GroupType.Xor));
+		}
+	}
+
+	public void addFeature(FeatureTreeNode node, int tab) {
+
+		String featureName = getValidName(node.getName());
+		// including the feature to the elements
+		elements.append("\t" + factory.getElement(featureName));
+
+		if (node instanceof RootNode) {
 			// including the root to the relations
-			relations.append("\t"+ factory.getCore(identifier));
-
+			relations.append("\t" + factory.getCore(featureName));
 		}
 		// Solitaire Feature
-		else if ( node instanceof SolitaireFeature ) {
-			// getting the name  parent of the feature
-			String parentName=  getValidName(((FeatureTreeNode) node.getParent()).getName());
-			
-			// name of the feature
-			String featureName= getValidName(node.getName());
-			// including the feature to the elements
-			elements.append("\t"+ factory.getElement(featureName));
-			
+		else if (node instanceof SolitaireFeature) {
+			// getting the name parent of the feature
+			String parentName = getValidName(((FeatureTreeNode) node.getParent()).getName());
+
 			// Optional Feature
-			if ( ((SolitaireFeature)node).isOptional()) {
+			if (((SolitaireFeature) node).isOptional()) {
 				// including the optional to relations
-				relations.append(
-						"\t"+ 
-						factory.getDecomposition(parentName, featureName, DecompositionType.Optional));
+				relations.append("\t" + factory.getDecomposition(parentName, featureName, DecompositionType.Optional));
 			}
 			// Mandatory Feature
 			else {
 				// including the mandatory to the relations
-				relations.append(
-						"\t"+ 
-						factory.getDecomposition(parentName, featureName, DecompositionType.Mandatory));
+				relations.append("\t" + factory.getDecomposition(parentName, featureName, DecompositionType.Mandatory));
 			}
+		}
+	}
+
+	private void traverseDFS(FeatureTreeNode node, int tab) {
+
+		// Root Feature
+		if ( node instanceof RootNode ||  node instanceof SolitaireFeature ) {
+			addFeature(node, tab);
 			
 		}
 		// Feature Group
 		else if ( node instanceof FeatureGroup ) {
-			// getting the parent of the group
-			String parentName=  getValidName(((FeatureTreeNode) node.getParent()).getName());
-			//TODO comment the min
-			
-			int maxCardinality = ((FeatureGroup)node).getMax();
-			
-			// obtaining a list of the children's identifiers
-			ArrayList<String> children= new ArrayList<String>();
-			Enumeration<FeatureTreeNode> childrenNodes = node.children();
-			while (childrenNodes.hasMoreElements()) {
-				FeatureTreeNode childNode = childrenNodes.nextElement();
-				String childFeatureName = getValidName(childNode.getName());
-				children.add(childFeatureName);
-				// including the child feature to the elements
-				elements.append("\t"+ factory.getElement(childFeatureName));
-			}
-			
-			// Including the Group relations
-			// OR relation
-			if (maxCardinality==-1) {
-				relations.append(
-						"\t"+ 
-						factory.getGroup(parentName, children, GroupType.Or));
-			}
-			// Alternative relation
-			else {
-				relations.append(
-						"\t"+ 
-						factory.getGroup(parentName, children, GroupType.Xor));
-			}
+			addFeatureGroup((FeatureGroup)node, tab);
 		}
 
 		//recursive call for each child
@@ -183,54 +194,48 @@ public class Splot2HlvlParser implements IHlvlParser{
 			traverseDFS((FeatureTreeNode )node.getChildAt(i), tab+1);
 		}
 	}
-	
+
 	/**
 	 * 
 	 * @param featureModel
 	 */
 	private void traverseConstraints(FeatureModel featureModel) {
-		
-		// for each constrainnt represented as a formula in CNF we call the parseCNF2expression method
+
+		// for each constrainnt represented as a formula in CNF we call the
+		// parseCNF2expression method
 		// in the factory
-		for( PropositionalFormula formula : featureModel.getConstraints() ) {
-			
-			// we traverse the set of variables to determine which are negatives and positives
-			List<String> positives= new ArrayList<String>();
-			List<String> negatives= new ArrayList<String>();
-			for(BooleanVariable var: formula.getVariables()) {
+		for (PropositionalFormula formula : featureModel.getConstraints()) {
+
+			// we traverse the set of variables to determine which are negatives and
+			// positives
+			List<String> positives = new ArrayList<String>();
+			List<String> negatives = new ArrayList<String>();
+			for (BooleanVariable var : formula.getVariables()) {
 				// obtaining the variable's name
-				String varName= getValidName(
-						featureModel
-						.getNodeByID(var.getID()).getName());
-				
+				String varName = getValidName(featureModel.getNodeByID(var.getID()).getName());
+
 				if (var.isPositive()) {
 					positives.add(varName);
-				}
-				else {
+				} else {
 					negatives.add(varName);
 				}
 			}
-			//adding the CNF to the relations
-			relations.append(
-					"\t"+ 
-					factory.parseCNF2expression(positives, negatives));
-		
+			// adding the CNF to the relations
+			relations.append("\t" + factory.parseCNF2expression(positives, negatives));
+
 		}
 	}
-	
+
 	private void writeFile() {
-		FileUtils.writeHLVLProgram(params.getOutputPath(),
-				hlvlProgram.toString());
+		FileUtils.writeHLVLProgram(params.getOutputPath(), hlvlProgram.toString());
 		System.out.println("Conversion complete");
 	}
-	
-	
+
 	public String getValidName(String name) {
-		return name.replaceAll(" ", "_")
-				.replaceAll("\\-", "Minus")
-				.replaceAll("\\+", "Plus")
-				.replaceAll("\\.", "dot").replaceAll("/", "");
+		return name.replaceAll(" ", "_").replaceAll("\\-", "Minus").replaceAll("\\+", "Plus").replaceAll("\\.", "dot")
+				.replaceAll("/", "");
 	}
+
 	/*--------------------------------------------------------------------------------------------
 	 * Getters and setters
 	 */
@@ -241,11 +246,9 @@ public class Splot2HlvlParser implements IHlvlParser{
 	public void setParams(ParsingParameters params) {
 		this.params = params;
 	}
-	
+
 	public String getProgram() {
 		return hlvlProgram.toString();
 	}
-
-
 
 }
