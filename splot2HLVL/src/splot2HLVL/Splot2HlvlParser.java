@@ -90,6 +90,10 @@ public class Splot2HlvlParser implements IHlvlParser {
 		return featureModel;
 	}
 
+	/**
+	 * Loads the elements and relations that exist in the feature model
+	 * @param featureModel The feature model that is represented in the splot file
+	 */
 	public void loadModelInformation(FeatureModel featureModel) {
 		// traversing the feature tree for obtaining the feature and the hierarchical
 		// dependencies
@@ -98,6 +102,9 @@ public class Splot2HlvlParser implements IHlvlParser {
 		traverseConstraints(featureModel);
 	}
 
+	/**
+	 * Writes the loaded elements and relations into an HLVL program
+	 */
 	public void writeHlvlProgram() {
 		// formating the output file
 		// including the Header
@@ -111,6 +118,9 @@ public class Splot2HlvlParser implements IHlvlParser {
 		hlvlProgram.append(factory.getBasicOperationsBlock());
 	}
 
+	/**
+	 * Formats a splot xml to an HLVL program
+	 */
 	public void parse() throws Exception {
 		FeatureModel featureModel = loadXmlModel();
 		loadModelInformation(featureModel);
@@ -120,6 +130,11 @@ public class Splot2HlvlParser implements IHlvlParser {
 
 	}
 
+	/**
+	 * Adds a feature group present in the model to the elements
+	 * @param node The feature group to be added
+	 * @param tab The number of tabs before the feature group
+	 */
 	public void addFeatureGroup(FeatureGroup node, int tab) {
 		// getting the parent of the group
 		String parentName = getValidName(((FeatureTreeNode) node.getParent()).getName());
@@ -149,6 +164,11 @@ public class Splot2HlvlParser implements IHlvlParser {
 		}
 	}
 
+	/**
+	 * Adds a feature present in the model to the elements
+	 * @param node The feature to be added. It must be a root node or a solitaire feature.
+	 * @param tab The number of tabs before the feature group
+	 */
 	public void addFeature(FeatureTreeNode node, int tab) {
 
 		String featureName = getValidName(node.getName());
@@ -177,6 +197,11 @@ public class Splot2HlvlParser implements IHlvlParser {
 		}
 	}
 
+	/**
+	 * Traverses a subtree of the Splot model using DFS, and adds its elements to the list
+	 * @param node The root of the subtree to be traversed
+	 * @param tab
+	 */
 	private void traverseDFS(FeatureTreeNode node, int tab) {
 
 		// Root Feature
@@ -196,12 +221,12 @@ public class Splot2HlvlParser implements IHlvlParser {
 	}
 
 	/**
-	 * 
-	 * @param featureModel
+	 * Adds the constraints present in the feature model to the list of relations
+	 * @param featureModel The splot model with the constraints
 	 */
 	private void traverseConstraints(FeatureModel featureModel) {
 
-		// for each constrainnt represented as a formula in CNF we call the
+		// for each constraint represented as a formula in CNF we call the
 		// parseCNF2expression method
 		// in the factory
 		for (PropositionalFormula formula : featureModel.getConstraints()) {
@@ -226,11 +251,20 @@ public class Splot2HlvlParser implements IHlvlParser {
 		}
 	}
 
+	/**
+	 * Writes the HLVL Program into the file specified in the params
+	 */
 	private void writeFile() {
 		FileUtils.writeHLVLProgram(params.getOutputPath(), hlvlProgram.toString());
 		System.out.println("Conversion complete");
 	}
 
+	/**
+	 * Method to formatting the name of an element in a valid name 
+	 * for hlvl (no spaces, no symbols, etc)
+	 * @param name is the identifier of the element
+	 * @return a String with formatted name
+	 */
 	public String getValidName(String name) {
 		return name.replaceAll(" ", "_").replaceAll("\\-", "Minus").replaceAll("\\+", "Plus").replaceAll("\\.", "dot")
 				.replaceAll("/", "");
